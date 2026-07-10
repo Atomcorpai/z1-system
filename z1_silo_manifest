@@ -1,5 +1,5 @@
 """
-z1_silo_manifest.py
+z1_silo_manifest
 
 Z1 context silo system.
 
@@ -7,7 +7,7 @@ The content router determines WHAT something is.
 This file determines WHERE it lives and HOW the gate behaves once it's there.
 
 Architecture:
-    Personality substrate — foundational layer, not a silo. Defined in self.py.
+    Personality substrate — foundational layer, not a silo. Defined in self.
     The lens every silo is read through. No proper nouns baked in.
 
     Four invariant context silos — the kernel. Every Z1 deployment boots
