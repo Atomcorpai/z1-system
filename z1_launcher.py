@@ -1,5 +1,5 @@
 """
-z1_launcher
+z1_launcher.py
 
 Boot verifier for the z1 governance stack.
 Runs before uvicorn starts. Fails loud if anything is broken.
@@ -11,7 +11,7 @@ Exit codes:
     1 — one or more checks failed, do not start
 
 Usage (Procfile or Railway start command):
-    python z1_launcher && uvicorn z1_bridge:app --host 0.0.0.0 --port 8000
+    python z1_launcher.py && uvicorn z1_bridge:app --host 0.0.0.0 --port 8000
 """
 
 from __future__ import annotations
