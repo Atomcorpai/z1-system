@@ -27,7 +27,7 @@ from pathlib import Path
 
 from z1_action_guard import ActionGuard, ActionDecision, gate_context_from_silo
 from z1_dam import z1Dam, DamDecision
-from reflect_evolve_log_compress import reflect, evolve, log_event
+from z1_reflect_evolve_log_compress import reflect, evolve, log_event
 from z1_silo_router import route_and_write, route_to_silo, load_context_for_mode
 
 # ---------------------------------------------------------------------------
@@ -68,8 +68,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-dam = z1Dam()
-guard = ActionGuard()
+dam = z1_dam()
+guard = z1_action_gate()
 
 
 # ---------------------------------------------------------------------------
@@ -194,7 +194,7 @@ async def gate_endpoint(request: GateRequest):
         "silo_id": silo_id,
         "silo_gate_active": silo_ctx.get("system_gate_active", True),
         "triggered_rules": triggered_rules,
-        "risk_level": guard_result.risk_level,
+        "risk_level": gate_result.risk_level,
         "decision": dam_result.decision.value,
         "required_next_step": dam_result.required_next_step,
         "assumptions": dam_result.assumptions,
