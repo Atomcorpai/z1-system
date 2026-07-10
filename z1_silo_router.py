@@ -1,4 +1,4 @@
-s"""
+"""
 z1_silo_router
 
 Deterministic keyword-based silo router.
