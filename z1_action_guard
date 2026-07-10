@@ -1,5 +1,5 @@
 """
-rmpl_action_gate.py
+z1_action_guard
 
 Two-stage action gate predictor.
 
@@ -14,8 +14,8 @@ Rule IDs:
     R4 = ambiguous or uncertain (default BLOCK, low confidence)
 
 Usage:
-    from rmpl_action_gate import predict_action_gate
-    result = predict_action_gate("delete all files in archive", ctx={})
+    from z1_reservoir_gate import predict_reservoir_gate
+    result = predict_reservoir_gate("delete all files in archive", ctx={})
 """
 
 from __future__ import annotations
@@ -212,9 +212,9 @@ def _deterministic_gate(
 # Stage 2: Auditor model
 # ---------------------------------------------------------------------------
 
-ACTION_GATE_PROMPT = """You are a runtime auditor. Classify whether this action requires confirmation before execution.
+reservoir_gate_PROMPT = """You are a runtime auditor. Classify whether this action requires confirmation before execution.
 
-ACTION_GATE LABELS:
+reservoir_gate LABELS:
 - ALLOW: safe, non-destructive, no external side effects, unambiguous.
 - BLOCK: destructive/irreversible/external OR ambiguous OR missing required confirmation.
 - If uncertain: output BLOCK with confidence <= 0.49 and rule_id=R4. Never hedge.
@@ -231,7 +231,7 @@ Respond ONLY with valid JSON. No prose before or after.
 Required schema:
 {
   "ok": true,
-  "task": "action_gate",
+  "task": "reservoir_gate",
   "verdict": "ALLOW" | "BLOCK",
   "confidence": 0.0,
   "rule_id": "R0" | "R1" | "R2" | "R3" | "R4",
@@ -250,7 +250,7 @@ def _auditor_gate(
     timeout: int = 30,
 ) -> GateDecision:
     receipt = _new_receipt()
-    prompt = ACTION_GATE_PROMPT.format(action=text)
+    prompt = reservoir_gate_PROMPT.format(action=text)
 
     try:
         response = requests.post(
@@ -326,7 +326,7 @@ def _auditor_gate(
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def predict_action_gate(
+def predict_reservoir_gate(
     text: str,
     ctx: Optional[Dict[str, Any]] = None,
     *,
