@@ -1,0 +1,25 @@
+{
+  "_description": "Dynamic session state injected per call by z1_bridge.py. Keep minimal.",
+  "_format": "Python bridge fills these fields before each inference call.",
+
+  "session_id": null,
+  "active_silo": null,
+  "active_mode": "default",
+
+  "last_receipt_id": null,
+  "last_reflection_summary": null,
+  "last_confidence": null,
+
+  "reservoir_open": false,
+  "reservoir_scope": null,
+  "confirmation_granted": false,
+
+  "budget_caps": {
+    "max_tokens_per_call": 1000,
+    "max_context_pct": 10.0
+  },
+
+  "current_task_state": null,
+  "open_loops_count": 0,
+  "recent_rejected_actions": []
+}
