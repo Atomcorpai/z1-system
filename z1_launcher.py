@@ -51,7 +51,7 @@ def check_imports() -> bool:
         ("z1_dam",             "z1Dam, DamDecision"),
         ("z1_reservoir_gate",  "ReservoirGate, ReservoirDecision"),
         ("z1_silo_manifest",   "get_silo, get_gate_ruleset, SILOS"),
-        ("reflect_evolve_log_compress", "reflect, evolve, log_event"),
+        ("z1_reflect_evolve_log_compress", "reflect, evolve, log_event"),
     ]
     for module, names in pairs:
         try:
