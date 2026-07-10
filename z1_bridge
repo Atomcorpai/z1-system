@@ -58,7 +58,7 @@ Destructive or irreversible actions require explicit confirmation before executi
 # App
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="z1 Bridge")
+app = FastAPI(title="z1_Bridge")
 
 app.add_middleware(
     CORSMiddleware,
