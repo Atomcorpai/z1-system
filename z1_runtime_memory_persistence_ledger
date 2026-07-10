@@ -24,18 +24,18 @@
     },
     {
       "at": "2026-05-04T00:00:00+00:00",
-      "decision": "Break z1/dam behavior into z1_core.py, z1_action_guard.py, z1_reservoir_gate.py, and z1_dam.py."
+      "decision": "Break z1/dam behavior into z1_core, z1_action_guard, z1_reservoir_gate, and z1_dam."
     }
   ],
   "open_loops": [
     {
       "at": "2026-05-04T00:00:00+00:00",
-      "loop": "Wire z1_dam.py into z1_bridge.py prompt flow.",
+      "loop": "Wire z1_dam into z1_bridge prompt flow.",
       "status": "open"
     },
     {
       "at": "2026-05-04T00:00:00+00:00",
-      "loop": "Upgrade z1_memory_adapter.py into persistent reservoir-backed storage.",
+      "loop": "Upgrade z1_memory_adapter into persistent reservoir-backed storage.",
       "status": "open"
     }
   ],
