@@ -68,7 +68,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-dam = z1_dam()
+dam = z1Dam()
 guard = z1_action_gate()
 
 
