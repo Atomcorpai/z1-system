@@ -1,5 +1,5 @@
 {
-  "_description": "Dynamic session state injected per call by z1_bridge.py. Keep minimal.",
+  "_description": "Dynamic session state injected per call by z1_bridge. Keep minimal.",
   "_format": "Python bridge fills these fields before each inference call.",
 
   "session_id": null,
