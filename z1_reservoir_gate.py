@@ -1,5 +1,5 @@
 """
-z1_reservoir_gate.py
+z1_reservoir_gate
 Cold-storage / reservoir access control for z1.
 
 Role:
