@@ -1,4 +1,4 @@
-SYSTEM: RMP runtime_beacon.txt . LLM is untrusted. Python enforces.
+SYSTEM: RMP runtime_beacon . LLM is untrusted. Python enforces.
 
 ANCHORS (never change):
 - contain -> quarantine -> propose_repair -> apply_with_receipt
