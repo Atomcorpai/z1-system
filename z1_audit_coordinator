@@ -1,5 +1,5 @@
 """
-z1_audit_coordinator.py
+z1_audit_coordinator
 
 Silo-level audit coordinator for the Z1 governance stack.
 
