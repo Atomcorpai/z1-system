@@ -262,7 +262,11 @@ def write_boot_receipt(results: dict) -> None:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-
+def main() -> None:
+    import os
+    print("FILES IN /app:", os.listdir("/app"))
+    print("SYS.PATH:", sys.path)
+    
 def main() -> None:
     print(f"\nz1 BOOT CHECK — {utc_now()}")
     print("=" * 50)
