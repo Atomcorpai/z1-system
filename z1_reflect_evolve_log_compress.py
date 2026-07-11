@@ -1,5 +1,5 @@
 """
-reflect_evolve_log_compress
+z1_reflect_evolve_log_compress.py
 
 Clean RMPL/Z1 runtime utility for reflection, evolution markers,
 durable event logging, and lossy compression of recent runtime text.
