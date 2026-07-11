@@ -9,7 +9,7 @@ Role:
     Surfaces audit flags to human. Never acts on them autonomously.
 
 Phase 2 changes (this version):
-    /gate endpoint now pulls silo context from gumbo_silo_manifest via
+    /gate endpoint now pulls silo context from z1_silo_manifest via
     gate_context_from_silo() and passes it into guard.classify().
     Router determines silo. Python enforces silo rules. No inference called.
 
@@ -69,7 +69,7 @@ app.add_middleware(
 )
 
 dam = z1Dam()
-guard = z1_action_gate()
+guard = ActionGuard()
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +85,7 @@ class ChatRequest(BaseModel):
 class GateRequest(BaseModel):
     instruction: str
     confirmation: bool = False
-    silo_id: str | None = None   # optional override; router determines if not supplied
+    silo_id: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -118,7 +118,7 @@ def run_inference(user_prompt: str, reflection_context: str = "", silo_context: 
 @app.get("/status")
 async def status():
     try:
-        files = [f for f in os.listdir(LIB_PATH) if f.endswith("")]
+        files = [f for f in os.listdir(LIB_PATH) if f.endswith(".py")]
     except Exception:
         files = []
     return {
@@ -153,16 +153,14 @@ async def gate_endpoint(request: GateRequest):
     # 2. Pull silo gate context from manifest
     silo_ctx = gate_context_from_silo(silo_id)
 
-    # 3. Run dam (which calls guard internally) — pass silo_id so dam can
-    #    short-circuit on system_gate_active=False silos
+    # 3. Run dam
     dam_result = dam.inspect_request(
         instruction,
         confirmation=request.confirmation,
         silo_id=silo_id,
     )
 
-    # 4. Also run guard directly with silo_ctx so silo hard stops and rule
-    #    overrides are applied on top of dam signals
+    # 4. Run guard with silo context
     guard_result = guard.classify(
         instruction,
         confirmation=request.confirmation,
@@ -194,7 +192,7 @@ async def gate_endpoint(request: GateRequest):
         "silo_id": silo_id,
         "silo_gate_active": silo_ctx.get("system_gate_active", True),
         "triggered_rules": triggered_rules,
-        "risk_level": gate_result.risk_level,
+        "risk_level": guard_result.risk_level,
         "decision": dam_result.decision.value,
         "required_next_step": dam_result.required_next_step,
         "assumptions": dam_result.assumptions,
