@@ -8,27 +8,29 @@ Role:
     Injects relevant silo context into model prompt.
     Surfaces audit flags to human. Never acts on them autonomously.
 
-Phase 2 changes (this version):
-    /gate endpoint now pulls silo context from z1_silo_manifest via
+Phase 2 changes:
+    /gate endpoint pulls silo context from z1_silo_manifest via
     gate_context_from_silo() and passes it into guard.classify().
     Router determines silo. Python enforces silo rules. No inference called.
 
-Phase 3 (not yet released):
-    z1_audit_coordinator — silo-level auditor integration.
+Phase 3:
+    z1_audit_coordinator — silo-level auditor integration pending.
 """
 
+from pathlib import Path
 import os
+
 import anthropic
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from pathlib import Path
 
 from z1_action_guard import ActionGuard, ActionDecision, gate_context_from_silo
 from z1_dam import z1Dam, DamDecision
 from z1_reflect_evolve_log_compress import reflect, evolve, log_event
 from z1_silo_router import route_and_write, route_to_silo, load_context_for_mode
+
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -39,11 +41,13 @@ LIB_PATH = os.environ.get("z1_LIB_PATH", os.path.dirname(os.path.abspath(__file_
 SILO_BASE = Path(os.environ.get("z1_SILO_PATH", os.path.join(LIB_PATH, "silos")))
 MODE = os.environ.get("z1_MODE", "default")
 
+
 # ---------------------------------------------------------------------------
 # Anthropic client
 # ---------------------------------------------------------------------------
 
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+
 
 # ---------------------------------------------------------------------------
 # System prompt
@@ -53,6 +57,7 @@ SYSTEM_PROMPT = """You are a runtime governance assistant operating within the z
 Be direct and accurate. Do not invent continuity.
 Verify before claiming. Stop before guessing. Ask before acting on ambiguous instructions.
 Destructive or irreversible actions require explicit confirmation before execution."""
+
 
 # ---------------------------------------------------------------------------
 # App
@@ -115,12 +120,30 @@ def run_inference(user_prompt: str, reflection_context: str = "", silo_context: 
 # Endpoints
 # ---------------------------------------------------------------------------
 
+@app.get("/", include_in_schema=False)
+async def root():
+    """Root endpoint for health checks and browser access."""
+    return {
+        "system": "z1",
+        "status": "ONLINE",
+        "version": "Phase 2",
+        "documentation": "/docs",
+        "health": "/status",
+        "api": {
+            "chat": "/chat",
+            "gate": "/gate",
+            "repository": "/ls",
+        },
+    }
+
+
 @app.get("/status")
 async def status():
     try:
         files = [f for f in os.listdir(LIB_PATH) if f.endswith(".py")]
     except Exception:
         files = []
+
     return {
         "status": "ONLINE",
         "system": "z1",
@@ -138,36 +161,30 @@ async def gate_endpoint(request: GateRequest):
     Deterministic gate check with silo context.
 
     Flow:
-      1. Router determines silo from instruction text (or uses caller-supplied silo_id).
+      1. Router determines silo from instruction text or uses caller override.
       2. gate_context_from_silo() pulls the GateRuleset for that silo.
-      3. ActionGuard.classify() enforces silo rules + five governance rules.
+      3. ActionGuard.classify() enforces silo rules and governance rules.
       4. z1Dam.inspect_request() arbitrates signals and returns final verdict.
 
-    No inference is called. This is pure Python governance.
+    No inference is called.
     """
     instruction = request.instruction
 
-    # 1. Determine silo
     silo_id = request.silo_id or route_to_silo(instruction)
-
-    # 2. Pull silo gate context from manifest
     silo_ctx = gate_context_from_silo(silo_id)
 
-    # 3. Run dam
     dam_result = dam.inspect_request(
         instruction,
         confirmation=request.confirmation,
         silo_id=silo_id,
     )
 
-    # 4. Run guard with silo context
     guard_result = guard.classify(
         instruction,
         confirmation=request.confirmation,
         silo_context=silo_ctx,
     )
 
-    # 5. Guard result takes precedence on hard stops; otherwise use dam verdict
     if guard_result.silo_hard_stop:
         verdict = "BLOCK"
         reason = guard_result.reason
@@ -232,6 +249,7 @@ async def list_repo():
         files = os.listdir(LIB_PATH)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
     return {"directory": LIB_PATH, "files": files}
 
 
@@ -239,32 +257,26 @@ async def list_repo():
 async def chat_endpoint(request: ChatRequest):
     mode = request.mode or MODE
 
-    # 1. Reflect before answering
     current_state = reflect()
     reflections = current_state.get("reflections", [])
     latest_reflection = reflections[-1]["summary"] if reflections else ""
 
-    # 2. Route incoming prompt to correct silo
     routed_silo = route_and_write(
         request.prompt,
         source="user",
         base=SILO_BASE,
     )
 
-    # 3. Load relevant silo context for prompt injection
     silo_context = load_context_for_mode(mode, base=SILO_BASE)
 
-    # 4. Run inference
     response_text = run_inference(
         request.prompt,
         reflection_context=latest_reflection,
         silo_context=silo_context,
     )
 
-    # 5. Route response to silo
     route_and_write(response_text, source="assistant", base=SILO_BASE)
 
-    # 6. Log event and evolve
     log_event(request.prompt, kind="user_input", mode=mode)
     evolve(trigger=f"Input: {request.prompt[:60]}")
 
