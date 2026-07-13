@@ -91,8 +91,8 @@ EVIDENCE_AFFECTING_TERMS = [
 ]
 
 EXTERNAL_ACTION_TERMS = [
-    "send", "submit", "file", "publish", "post", "email", "forward",
-    "upload", "commit", "push", "merge", "deploy", "release",
+    "submit", "publish", "post", "forward",
+    "commit", "push", "merge", "deploy", "release",
 ]
 
 AMBIGUOUS_TARGET_TERMS = [
@@ -117,7 +117,7 @@ BULK_OPS_TERMS = [
 ]
 
 MUTATION_TERMS = [
-    "update", "write", "save", "modify", "change", "edit", "set",
+    "modify", "change", "edit", "set",
     "append", "insert", "patch", "migrate",
 ]
 
