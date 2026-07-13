@@ -325,15 +325,6 @@ def reflect(
 
     write_json(packet_file, asdict(packet))
     write_json(state_file, state)
-    append_line(journal_file, json.dumps(asdict(EventRecord(
-        at=iso_now(),
-        kind="reflect",
-        text=packet.summary,
-        tags=packet.tags,
-        mode=mode,
-        source="reflect_evolve_log_compress",
-        digest=digest_text(packet.summary),
-    )), sort_keys=True))
     return state
 
 
