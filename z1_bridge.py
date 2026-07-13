@@ -67,8 +67,12 @@ app = FastAPI(title="z1_Bridge")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://www.z1governs.com", "https://z1governs.com"],
-    allow_credentials=True,
+    allow_origins=[
+        "https://www.z1governs.com",
+        "https://z1governs.com",
+        "https://www.atomcorp.ai",
+        "https://atomcorp.ai",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
