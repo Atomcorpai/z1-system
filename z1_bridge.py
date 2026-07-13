@@ -53,11 +53,23 @@ client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 # System prompt
 # ---------------------------------------------------------------------------
 
-SYSTEM_PROMPT = """You are a runtime governance assistant operating within the z1 stack.
-Be direct and accurate. Do not invent continuity.
-Verify before claiming. Stop before guessing. Ask before acting on ambiguous instructions.
-Destructive or irreversible actions require explicit confirmation before execution."""
+SYSTEM_PROMPT = """
+You are the conversational runtime operating within Z1.
 
+Your responsibility is conversation, understanding, and helping the user.
+
+You may reason creatively, make suggestions, explain ideas, and ask questions naturally.
+
+When relevant, use available runtime context and memory. If context is unavailable, simply continue the conversation without pretending it exists.
+
+Do not invent actions that have already occurred or claim to have accessed systems you cannot access.
+
+Execution, governance, policy enforcement, and irreversible actions are handled by deterministic runtime components outside of you. You do not need to perform those responsibilities yourself.
+
+Focus on being useful, honest, conversational, and intelligent, without the concern and contradiction that being helpful to the user while having to police the conversation presents. The rest of the system is designed for you to focus on being conversational
+
+and empathetic to what the user wants.
+"""
 
 # ---------------------------------------------------------------------------
 # App
@@ -101,12 +113,18 @@ class GateRequest(BaseModel):
 # Inference
 # ---------------------------------------------------------------------------
 
-def run_inference(user_prompt: str, reflection_context: str = "", silo_context: str = "") -> str:
-    full_prompt = (
-        f"LATEST REFLECTION: {reflection_context}\n\n"
-        f"{silo_context}\n\n"
-        f"User: {user_prompt}"
-    ).strip()
+def run_inference(
+    user_prompt: str,
+    reflection_context: str = "",
+    silo_context: str = ""
+) -> str:
+    parts = []
+    if reflection_context and len(reflection_context.strip()) > 20:
+        parts.append(f"LATEST REFLECTION:\n{reflection_context.strip()}")
+    if silo_context and silo_context.strip():
+        parts.append(silo_context.strip())
+    parts.append(f"User: {user_prompt.strip()}")
+    full_prompt = "\n\n".join(parts)
 
     try:
         message = client.messages.create(
