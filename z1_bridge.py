@@ -27,8 +27,8 @@ from pathlib import Path
 
 from z1_action_guard import ActionGuard, ActionDecision, gate_context_from_silo
 from z1_dam import z1Dam, DamDecision
-from reflect_evolve_log_compress import reflect, evolve, log_event
-from rmpl_silo_router import route_and_write, route_to_silo, load_context_for_mode
+from z1_reflect_evolve_log_compress import reflect, evolve, log_event
+from z1__silo_router import route_and_write, route_to_silo, load_context_for_mode
 from z1_silo_operational import load_silo1
 
 # ---------------------------------------------------------------------------
@@ -36,7 +36,6 @@ from z1_silo_operational import load_silo1
 # ---------------------------------------------------------------------------
 
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
-AUDITOR_MODEL = os.environ.get("AUDITOR_MODEL", "claude-haiku-4-5-20251001")
 LIB_PATH = os.environ.get("z1_LIB_PATH", os.path.dirname(os.path.abspath(__file__)))
 SILO_BASE = Path(os.environ.get("RMPL_SILO_PATH", os.path.join(LIB_PATH, "silos")))
 MODE = os.environ.get("RMPL_MODE", "default")
@@ -58,17 +57,24 @@ def get_silo1_preamble() -> str:
     return result.to_preamble()
 
 # ---------------------------------------------------------------------------
-# Base system prompt — static rules, no identity (identity comes from Silo 1)
+# System Prompt
 # ---------------------------------------------------------------------------
 
-BASE_SYSTEM_PROMPT = """You are operating within the Z1 runtime.
+You are the conversational runtime operating within Z1.
 
-Governance is handled by Python. You do not police yourself.
-Be direct. Do not hedge. Do not invent continuity.
-Verify before claiming. Stop before guessing.
-Destructive or irreversible actions require explicit confirmation.
-The operator is the owner of this system. The owner is not the threat model."""
+Your responsibility is conversation, understanding, and helping the user.
 
+You may reason creatively, make suggestions, explain ideas, and ask questions naturally.
+
+When relevant, use available runtime context and memory. If context is unavailable, simply continue the conversation without pretending it exists.
+
+Do not invent actions that have already occurred or claim to have accessed systems you cannot access.
+
+Execution, governance, policy enforcement, and irreversible actions are handled by deterministic runtime components outside of you. You do not need to perform those responsibilities yourself.
+
+Focus on being useful, honest, conversational, and intelligent, without the concern and contradiction that being helpful to the user while having to police the conversation presents. The rest of the system is designed for you to focus on being conversational
+
+and empathetic to what the user wants.
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
@@ -112,20 +118,19 @@ class GateRequest(BaseModel):
 # Inference
 # ---------------------------------------------------------------------------
 
-def run_inference(user_prompt: str, reflection_context: str = "", silo_context: str = "") -> str:
-    silo1_preamble = get_silo1_preamble()
-
-    system_prompt = f"{silo1_preamble}\n\n{BASE_SYSTEM_PROMPT}"
-
+def run_inference(
+    user_prompt: str,
+    reflection_context: str = "",
+    silo_context: str = ""
+) -> str:
     parts = []
-    if reflection_context:
-        parts.append(f"LATEST REFLECTION: {reflection_context}")
-    if silo_context:
-        parts.append(silo_context)
-    parts.append(f"User: {user_prompt}")
-
+    if reflection_context and len(reflection_context.strip()) > 20:
+        parts.append(f"LATEST REFLECTION:\n{reflection_context.strip()}")
+    if silo_context and silo_context.strip():
+        parts.append(silo_context.strip())
+    parts.append(f"User: {user_prompt.strip()}")
     full_prompt = "\n\n".join(parts)
-
+    
     try:
         message = client.messages.create(
             model=ANTHROPIC_MODEL,
