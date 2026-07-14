@@ -3,3 +3,4 @@ uvicorn
 requests
 anthropic
 pydantic
+psycopg2-binary
