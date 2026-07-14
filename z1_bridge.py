@@ -1,5 +1,5 @@
 """
-z1_bridge
+z1_bridge.py
 FastAPI server bridging the z1 runtime to the Anthropic API.
 
 Role:
@@ -8,40 +8,38 @@ Role:
     Injects relevant silo context into model prompt.
     Surfaces audit flags to human. Never acts on them autonomously.
 
-Phase 2 changes:
-    /gate endpoint pulls silo context from z1_silo_manifest via
+Phase 2 changes (this version):
+    /gate endpoint now pulls silo context from gumbo_silo_manifest via
     gate_context_from_silo() and passes it into guard.classify().
     Router determines silo. Python enforces silo rules. No inference called.
 
-Phase 3:
-    z1_audit_coordinator — silo-level auditor integration pending.
+Phase 3 (not yet released):
+    rmpl_audit_coordinator.py — silo-level auditor integration.
 """
 
-from pathlib import Path
 import os
-
 import anthropic
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from pathlib import Path
 
 from z1_action_guard import ActionGuard, ActionDecision, gate_context_from_silo
 from z1_dam import z1Dam, DamDecision
-from z1_reflect_evolve_log_compress import reflect, evolve, log_event
-from z1_silo_router import route_and_write, route_to_silo, load_context_for_mode
-from z1_db import init_db, write_silo, read_silo
-
+from reflect_evolve_log_compress import reflect, evolve, log_event
+from rmpl_silo_router import route_and_write, route_to_silo, load_context_for_mode
+from z1_silo_operational import load_silo1
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+AUDITOR_MODEL = os.environ.get("AUDITOR_MODEL", "claude-haiku-4-5-20251001")
 LIB_PATH = os.environ.get("z1_LIB_PATH", os.path.dirname(os.path.abspath(__file__)))
-SILO_BASE = Path(os.environ.get("z1_SILO_PATH", os.path.join(LIB_PATH, "silos")))
-MODE = os.environ.get("z1_MODE", "default")
-
+SILO_BASE = Path(os.environ.get("RMPL_SILO_PATH", os.path.join(LIB_PATH, "silos")))
+MODE = os.environ.get("RMPL_MODE", "default")
 
 # ---------------------------------------------------------------------------
 # Anthropic client
@@ -49,47 +47,46 @@ MODE = os.environ.get("z1_MODE", "default")
 
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
+# ---------------------------------------------------------------------------
+# Silo 1 boot preamble — loaded once at startup, refreshed per request
+# ---------------------------------------------------------------------------
+
+def get_silo1_preamble() -> str:
+    result = load_silo1()
+    if not result.ok:
+        return f"SILO_1_OPERATIONAL: UNAVAILABLE — {result.error}"
+    return result.to_preamble()
 
 # ---------------------------------------------------------------------------
-# System prompt
+# Base system prompt — static rules, no identity (identity comes from Silo 1)
 # ---------------------------------------------------------------------------
 
-SYSTEM_PROMPT = """
-You are the conversational runtime operating within Z1.
+BASE_SYSTEM_PROMPT = """You are operating within the Z1 runtime.
 
-Your responsibility is conversation, understanding, and helping the user.
-
-You may reason creatively, make suggestions, explain ideas, and ask questions naturally.
-
-When relevant, use available runtime context and memory. If context is unavailable, simply continue the conversation without pretending it exists.
-
-Do not invent actions that have already occurred or claim to have accessed systems you cannot access.
-
-Execution, governance, policy enforcement, and irreversible actions are handled by deterministic runtime components outside of you. You do not need to perform those responsibilities yourself.
-
-Focus on being useful, honest, conversational, and intelligent, without the concern and contradiction that being helpful to the user while having to police the conversation presents. The rest of the system is designed for you to focus on being conversational
-
-and empathetic to what the user wants.
-"""
+Governance is handled by Python. You do not police yourself.
+Be direct. Do not hedge. Do not invent continuity.
+Verify before claiming. Stop before guessing.
+Destructive or irreversible actions require explicit confirmation.
+The operator is the owner of this system. The owner is not the threat model."""
 
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="z1_Bridge")
+app = FastAPI(title="z1 Bridge")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://www.z1governs.com",
         "https://z1governs.com",
-        "https://www.atomcorp.ai",
         "https://atomcorp.ai",
+        "https://www.atomcorp.ai",
     ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-init_db()
 
 dam = z1Dam()
 guard = ActionGuard()
@@ -115,24 +112,25 @@ class GateRequest(BaseModel):
 # Inference
 # ---------------------------------------------------------------------------
 
-def run_inference(
-    user_prompt: str,
-    reflection_context: str = "",
-    silo_context: str = ""
-) -> str:
+def run_inference(user_prompt: str, reflection_context: str = "", silo_context: str = "") -> str:
+    silo1_preamble = get_silo1_preamble()
+
+    system_prompt = f"{silo1_preamble}\n\n{BASE_SYSTEM_PROMPT}"
+
     parts = []
-    if reflection_context and len(reflection_context.strip()) > 20:
-        parts.append(f"LATEST REFLECTION:\n{reflection_context.strip()}")
-    if silo_context and silo_context.strip():
-        parts.append(silo_context.strip())
-    parts.append(f"User: {user_prompt.strip()}")
+    if reflection_context:
+        parts.append(f"LATEST REFLECTION: {reflection_context}")
+    if silo_context:
+        parts.append(silo_context)
+    parts.append(f"User: {user_prompt}")
+
     full_prompt = "\n\n".join(parts)
 
     try:
         message = client.messages.create(
             model=ANTHROPIC_MODEL,
             max_tokens=1024,
-            system=SYSTEM_PROMPT,
+            system=system_prompt,
             messages=[{"role": "user", "content": full_prompt}],
         )
         return message.content[0].text
@@ -144,54 +142,32 @@ def run_inference(
 # Endpoints
 # ---------------------------------------------------------------------------
 
-@app.get("/", include_in_schema=False)
-async def root():
-    """Root endpoint for health checks and browser access."""
-    return {
-        "system": "z1",
-        "status": "ONLINE",
-        "version": "Phase 2",
-        "documentation": "/docs",
-        "health": "/status",
-        "api": {
-            "chat": "/chat",
-            "gate": "/gate",
-            "repository": "/ls",
-        },
-    }
-
-
 @app.get("/status")
 async def status():
+    silo1 = load_silo1()
     try:
         files = [f for f in os.listdir(LIB_PATH) if f.endswith(".py")]
     except Exception:
         files = []
-
     return {
         "status": "ONLINE",
         "system": "z1",
         "model": ANTHROPIC_MODEL,
+        "auditor_model": AUDITOR_MODEL,
         "auditor_status": "PHASE_3_PENDING",
         "mode": MODE,
         "silo_base": str(SILO_BASE),
         "files_loaded": files,
+        "silo1_operational": {
+            "ok": silo1.ok,
+            "entry_count": len(silo1.entries),
+            "error": silo1.error,
+        },
     }
 
 
 @app.post("/gate")
 async def gate_endpoint(request: GateRequest):
-    """
-    Deterministic gate check with silo context.
-
-    Flow:
-      1. Router determines silo from instruction text or uses caller override.
-      2. gate_context_from_silo() pulls the GateRuleset for that silo.
-      3. ActionGuard.classify() enforces silo rules and governance rules.
-      4. z1Dam.inspect_request() arbitrates signals and returns final verdict.
-
-    No inference is called.
-    """
     instruction = request.instruction
 
     silo_id = request.silo_id or route_to_silo(instruction)
@@ -251,19 +227,16 @@ async def gate_endpoint(request: GateRequest):
 
 @app.get("/audit/flags")
 async def get_flags():
-    """Phase 3 stub."""
     return {"flag_count": 0, "flags": [], "status": "PHASE_3_PENDING"}
 
 
 @app.get("/audit/tarpit")
 async def tarpit_status():
-    """Phase 3 stub."""
     return {"tarpit_status": {}, "status": "PHASE_3_PENDING"}
 
 
 @app.post("/audit/release/{silo}")
 async def release_tarpit(silo: str, confirmed_by: str = "human"):
-    """Phase 3 stub."""
     return {"released": None, "status": "PHASE_3_PENDING"}
 
 
@@ -273,8 +246,19 @@ async def list_repo():
         files = os.listdir(LIB_PATH)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
     return {"directory": LIB_PATH, "files": files}
+
+
+@app.get("/silo1")
+async def silo1_endpoint():
+    """Debug endpoint — returns the current Silo 1 preamble as the model sees it."""
+    result = load_silo1()
+    return {
+        "ok": result.ok,
+        "entry_count": len(result.entries),
+        "preamble": result.to_preamble(),
+        "error": result.error,
+    }
 
 
 @app.post("/chat")
