@@ -9,12 +9,12 @@ Role:
     Surfaces audit flags to human. Never acts on them autonomously.
 
 Phase 2 changes (this version):
-    /gate endpoint now pulls silo context from gumbo_silo_manifest via
+    /gate endpoint now pulls silo context from z1_silo_manifest via
     gate_context_from_silo() and passes it into guard.classify().
     Router determines silo. Python enforces silo rules. No inference called.
 
 Phase 3 (not yet released):
-    rmpl_audit_coordinator.py — silo-level auditor integration.
+    z1_audit_coordinator.py — silo-level auditor integration.
 """
 
 import os
@@ -28,7 +28,7 @@ from pathlib import Path
 from z1_action_guard import ActionGuard, ActionDecision, gate_context_from_silo
 from z1_dam import z1Dam, DamDecision
 from z1_reflect_evolve_log_compress import reflect, evolve, log_event
-from z1__silo_router import route_and_write, route_to_silo, load_context_for_mode
+from z1_silo_router import route_and_write, route_to_silo, load_context_for_mode
 from z1_silo_operational import load_silo1
 
 # ---------------------------------------------------------------------------
@@ -37,8 +37,8 @@ from z1_silo_operational import load_silo1
 
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 LIB_PATH = os.environ.get("z1_LIB_PATH", os.path.dirname(os.path.abspath(__file__)))
-SILO_BASE = Path(os.environ.get("RMPL_SILO_PATH", os.path.join(LIB_PATH, "silos")))
-MODE = os.environ.get("RMPL_MODE", "default")
+SILO_BASE = Path(os.environ.get("z1_SILO_PATH", os.path.join(LIB_PATH, "silos")))
+MODE = os.environ.get("z1_MODE", "default")
 
 # ---------------------------------------------------------------------------
 # Anthropic client
@@ -47,7 +47,7 @@ MODE = os.environ.get("RMPL_MODE", "default")
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 # ---------------------------------------------------------------------------
-# Silo 1 boot preamble — loaded once at startup, refreshed per request
+# Silo 1 boot preamble — loaded per request from Postgres
 # ---------------------------------------------------------------------------
 
 def get_silo1_preamble() -> str:
@@ -57,10 +57,10 @@ def get_silo1_preamble() -> str:
     return result.to_preamble()
 
 # ---------------------------------------------------------------------------
-# System Prompt
+# System prompt
 # ---------------------------------------------------------------------------
 
-You are the conversational runtime operating within Z1.
+SYSTEM_PROMPT = """You are the conversational runtime operating within Z1.
 
 Your responsibility is conversation, understanding, and helping the user.
 
@@ -72,9 +72,8 @@ Do not invent actions that have already occurred or claim to have accessed syste
 
 Execution, governance, policy enforcement, and irreversible actions are handled by deterministic runtime components outside of you. You do not need to perform those responsibilities yourself.
 
-Focus on being useful, honest, conversational, and intelligent, without the concern and contradiction that being helpful to the user while having to police the conversation presents. The rest of the system is designed for you to focus on being conversational
+Focus on being useful, honest, conversational, and intelligent, without the concern and contradiction that being helpful to the user while having to police the conversation presents. The rest of the system is designed for you to focus on being conversational and empathetic to what the user wants."""
 
-and empathetic to what the user wants.
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
@@ -123,6 +122,9 @@ def run_inference(
     reflection_context: str = "",
     silo_context: str = ""
 ) -> str:
+    silo1_preamble = get_silo1_preamble()
+    full_system = f"{silo1_preamble}\n\n{SYSTEM_PROMPT}"
+
     parts = []
     if reflection_context and len(reflection_context.strip()) > 20:
         parts.append(f"LATEST REFLECTION:\n{reflection_context.strip()}")
@@ -130,12 +132,12 @@ def run_inference(
         parts.append(silo_context.strip())
     parts.append(f"User: {user_prompt.strip()}")
     full_prompt = "\n\n".join(parts)
-    
+
     try:
         message = client.messages.create(
             model=ANTHROPIC_MODEL,
             max_tokens=1024,
-            system=system_prompt,
+            system=full_system,
             messages=[{"role": "user", "content": full_prompt}],
         )
         return message.content[0].text
@@ -158,7 +160,6 @@ async def status():
         "status": "ONLINE",
         "system": "z1",
         "model": ANTHROPIC_MODEL,
-        "auditor_model": AUDITOR_MODEL,
         "auditor_status": "PHASE_3_PENDING",
         "mode": MODE,
         "silo_base": str(SILO_BASE),
