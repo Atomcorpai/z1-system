@@ -11,7 +11,7 @@ Role:
 Phase 2 changes (this version):
     /gate endpoint now pulls silo context from z1_silo_manifest via
     gate_context_from_silo() and passes it into guard.classify().
-    Router determines silo. Python enforces silo rules. No inference called.
+    Router determines silo. Python enforces silo rules.
 
 Phase 3 (not yet released):
     z1_audit_coordinator.py — silo-level auditor integration.
@@ -27,7 +27,6 @@ from pathlib import Path
 
 from z1_action_guard import ActionGuard, ActionDecision, gate_context_from_silo
 from z1_dam import z1Dam, DamDecision
-from z1_reflect_evolve_log_compress import reflect, evolve, log_event
 from z1_silo_router import route_and_write, route_to_silo, load_context_for_mode
 from z1_silo_operational import load_silo1
 
@@ -117,17 +116,12 @@ class GateRequest(BaseModel):
 # Inference
 # ---------------------------------------------------------------------------
 
-def run_inference(
-    user_prompt: str,
-    reflection_context: str = "",
-    silo_context: str = ""
-) -> str:
+def run_inference(user_prompt: str, silo_context: str = "") -> str:
     silo1_preamble = get_silo1_preamble()
     full_system = f"{silo1_preamble}\n\n{SYSTEM_PROMPT}"
 
     parts = []
-    if reflection_context and len(reflection_context.strip()) > 20:
-        parts.append(f"LATEST REFLECTION:\n{reflection_context.strip()}")
+ 
     if silo_context and silo_context.strip():
         parts.append(silo_context.strip())
     parts.append(f"User: {user_prompt.strip()}")
@@ -271,10 +265,6 @@ async def silo1_endpoint():
 async def chat_endpoint(request: ChatRequest):
     mode = request.mode or MODE
 
-    current_state = reflect()
-    reflections = current_state.get("reflections", [])
-    latest_reflection = reflections[-1]["summary"] if reflections else ""
-
     routed_silo = route_and_write(
         request.prompt,
         source="user",
@@ -284,15 +274,11 @@ async def chat_endpoint(request: ChatRequest):
     silo_context = load_context_for_mode(mode, base=SILO_BASE)
 
     response_text = run_inference(
-        request.prompt,
-        reflection_context=latest_reflection,
-        silo_context=silo_context,
-    )
+    request.prompt,
+    silo_context=silo_context,
+)
 
     route_and_write(response_text, source="assistant", base=SILO_BASE)
-
-    log_event(request.prompt, kind="user_input", mode=mode)
-    evolve(trigger=f"Input: {request.prompt[:60]}")
 
     return {
         "response": response_text,
