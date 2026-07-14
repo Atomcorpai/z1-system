@@ -30,6 +30,7 @@ from z1_action_guard import ActionGuard, ActionDecision, gate_context_from_silo
 from z1_dam import z1Dam, DamDecision
 from z1_reflect_evolve_log_compress import reflect, evolve, log_event
 from z1_silo_router import route_and_write, route_to_silo, load_context_for_mode
+from z1_db import init_db, write_silo, read_silo
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +89,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+init_db()
 
 dam = z1Dam()
 guard = ActionGuard()
