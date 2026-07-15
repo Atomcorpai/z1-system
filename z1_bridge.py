@@ -260,7 +260,6 @@ async def silo1_endpoint():
         "error": result.error,
     }
 
-
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     mode = request.mode or MODE
@@ -271,12 +270,7 @@ async def chat_endpoint(request: ChatRequest):
         base=SILO_BASE,
     )
 
-    silo_context = load_context_for_mode(mode, base=SILO_BASE)
-
-    response_text = run_inference(
-    request.prompt,
-    silo_context=silo_context,
-)
+    response_text = run_inference(request.prompt)
 
     route_and_write(response_text, source="assistant", base=SILO_BASE)
 
