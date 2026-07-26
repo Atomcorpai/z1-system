@@ -27,7 +27,7 @@ from typing import Any, Optional
 
 import psycopg2
 
-from reflect_evolve_log_compress import (
+from z1_reflect_evolve_log_compress import (
     compress_entries, digest_text, normalize_text, redact,
 )
 
