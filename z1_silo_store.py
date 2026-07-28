@@ -126,7 +126,31 @@ def log_turn(text: str, *, silo_id: str = DEFAULT_SILO, role: str = "assistant",
     with get_conn() as conn, conn.cursor() as cur:
         return _insert_turn(cur, silo_id, role, body, source, trust, mode)
 
+REFLECT_EVERY = 6
 
+def _turns_since_last_packet(cur, silo_id: str) -> int:
+    cur.execute(
+        """SELECT count(*) FROM silo_turns t
+           WHERE t.silo_id=%s AND t.at > COALESCE(
+             (SELECT max(at) FROM silo_packets p WHERE p.silo_id=%s), '-infinity')""",
+        (silo_id, silo_id),
+    )
+    return cur.fetchone()[0]
+
+def record_turn(text: str, *, silo_id: str = DEFAULT_SILO, role: str = "assistant",
+                source: str = "runtime", trust: str = "trusted", mode: str = "default") -> Optional[int]:
+    tid = log_turn(text, silo_id=silo_id, role=role, source=source, trust=trust, mode=mode)
+    if tid is None:
+        return None
+    with get_conn() as conn, conn.cursor() as cur:
+        due = _turns_since_last_packet(cur, silo_id) >= REFLECT_EVERY
+    if due:
+        reflect_silo(silo_id=silo_id, mode=mode)
+    return tid
+
+def checkpoint(silo_id: str = DEFAULT_SILO, mode: str = "default"):
+    return reflect_silo(silo_id=silo_id, mode=mode)
+  
 # -----------------------------
 # Reflect (compress last N turns into a packet)
 # -----------------------------
