@@ -29,6 +29,7 @@ from z1_action_guard import ActionGuard, ActionDecision, gate_context_from_silo
 from z1_dam import z1Dam, DamDecision
 from z1_silo_router import route_and_write, route_to_silo, load_context_for_mode
 from z1_silo_operational import load_silo1
+from z1_silo_store import record_turn, rehydrate, checkpoint
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -264,15 +265,25 @@ async def silo1_endpoint():
 async def chat_endpoint(request: ChatRequest):
     mode = request.mode or MODE
 
+    rehydration = rehydrate(silo_id="silo1")
+    latest_reflection = rehydration.get("prompt", "")
+
+    record_turn(request.prompt, role="user", source="runtime", mode=mode)
+
     routed_silo = route_and_write(
         request.prompt,
         source="user",
         base=SILO_BASE,
     )
 
-    response_text = run_inference(request.prompt)
+    response_text = run_inference(
+        request.prompt,
+        silo_context=latest_reflection,
+    )
 
     route_and_write(response_text, source="assistant", base=SILO_BASE)
+
+    record_turn(response_text, role="assistant", source="runtime", mode=mode)
 
     return {
         "response": response_text,
@@ -284,7 +295,6 @@ async def chat_endpoint(request: ChatRequest):
             "tarpit_active": False,
         },
     }
-
 
 # ---------------------------------------------------------------------------
 # Entry point
