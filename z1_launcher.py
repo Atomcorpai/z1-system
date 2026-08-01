@@ -236,6 +236,22 @@ def check_action_guard_with_silo() -> bool:
         return False
 
 
+def check_silo_store_schema() -> bool:
+    """
+    Ensure silo_turns / silo_packets exist. z1_silo_store.rehydrate() hits
+    these on every /chat request — without this, a missing table only
+    surfaces as a 500 the first time a real user sends a message.
+    """
+    try:
+        from z1_silo_store import init_schema
+        init_schema()
+        ok("silo_store schema — silo_turns/silo_packets ready")
+        return True
+    except Exception as e:
+        fail("silo_store schema", traceback.format_exc(limit=2).strip())
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Boot receipt
 # ---------------------------------------------------------------------------
@@ -278,6 +294,9 @@ def main() -> None:
 
     print("\n[5] Guard + silo context end-to-end")
     results["guard_silo_e2e"] = check_action_guard_with_silo()
+
+    print("\n[6] Silo store schema — Postgres tables")
+    results["silo_store_schema"] = check_silo_store_schema()
 
     print("\n" + "=" * 50)
     all_passed = all(results.values())
