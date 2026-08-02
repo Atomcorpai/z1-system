@@ -243,10 +243,12 @@ def check_silo_store_schema() -> bool:
         ok("silo_store schema — tables ready")
         return True
     except Exception as e:
-        if "socket" in str(e) or "DATABASE_URL" in str(e) or "OperationalError" in str(e):
+        err = str(e)
+        err_type = type(e).__name__
+        if any(x in err or x in err_type for x in ["socket", "DATABASE_URL", "OperationalError", "psycopg2"]):
             ok("silo_store schema — DB not available at boot check, will init on first request")
             return True
-        fail("silo_store schema", str(e))
+        fail("silo_store schema", err)
         return False
 
 # ---------------------------------------------------------------------------
