@@ -135,7 +135,7 @@ def run_inference(user_prompt: str, silo_context: str = "") -> str:
     try:
         message = client.messages.create(
             model=ANTHROPIC_MODEL,
-            max_tokens=1024,
+            max_tokens=4096,
             system=full_system,
             messages=[{"role": "user", "content": full_prompt}],
         )
