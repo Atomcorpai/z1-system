@@ -13,8 +13,11 @@ Phase 2 changes (this version):
     gate_context_from_silo() and passes it into guard.classify().
     Router determines silo. Python enforces silo rules.
 
-Phase 3 (not yet released):
-    z1_audit_coordinator.py — silo-level auditor integration.
+Phase 3 (this version):
+    owner_token scoping — reads and writes are scoped to the token passed
+    in the request. Public visitors get 'public' context. Paying customers
+    pass their own token and get only their own context. Context follows
+    the credential, not the URL.
 """
 
 import os
@@ -29,7 +32,7 @@ from z1_action_guard import ActionGuard, ActionDecision, gate_context_from_silo
 from z1_dam import z1Dam, DamDecision
 from z1_silo_router import route_and_write, route_to_silo, load_context_for_mode
 from z1_silo_operational import load_silo1
-from z1_silo_store import record_turn, rehydrate, checkpoint
+from z1_silo_store import record_turn, rehydrate, checkpoint, PUBLIC_TOKEN
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -105,6 +108,7 @@ class ChatRequest(BaseModel):
     prompt: str
     context: str = ""
     mode: str = MODE
+    owner_token: str = PUBLIC_TOKEN
 
 
 class GateRequest(BaseModel):
@@ -122,7 +126,7 @@ def run_inference(user_prompt: str, silo_context: str = "") -> str:
     full_system = f"{silo1_preamble}\n\n{SYSTEM_PROMPT}"
 
     parts = []
- 
+
     if silo_context and silo_context.strip():
         parts.append(silo_context.strip())
     parts.append(f"User: {user_prompt.strip()}")
@@ -261,14 +265,17 @@ async def silo1_endpoint():
         "error": result.error,
     }
 
+
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     mode = request.mode or MODE
+    owner_token = request.owner_token or PUBLIC_TOKEN
 
-    rehydration = rehydrate(silo_id="silo1")
+    rehydration = rehydrate(silo_id="silo1", owner_token=owner_token)
     latest_reflection = rehydration.get("prompt", "")
 
-    record_turn(request.prompt, role="user", source="runtime", mode=mode)
+    record_turn(request.prompt, role="user", source="runtime", mode=mode,
+                owner_token=owner_token)
 
     routed_silo = route_and_write(
         request.prompt,
@@ -283,7 +290,8 @@ async def chat_endpoint(request: ChatRequest):
 
     route_and_write(response_text, source="assistant", base=SILO_BASE)
 
-    record_turn(response_text, role="assistant", source="runtime", mode=mode)
+    record_turn(response_text, role="assistant", source="runtime", mode=mode,
+                owner_token=owner_token)
 
     return {
         "response": response_text,
@@ -295,6 +303,7 @@ async def chat_endpoint(request: ChatRequest):
             "tarpit_active": False,
         },
     }
+
 
 # ---------------------------------------------------------------------------
 # Entry point
