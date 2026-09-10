@@ -218,13 +218,14 @@ class z1Dam:
         If that silo's gate has system_gate_active=False, skip governance
         entirely — conversation is not the gate's job.
         """
+        
         request_text = request_text or ""
         ledger_check = self.ledger.load()
         signals: List[SiloSignal] = []
 
         if silo_id:
             try:
-                from gumbo_silo_manifest import get_gate_ruleset
+                from z1_silo_manifest import get_gate_ruleset
                 ruleset = get_gate_ruleset(silo_id)
                 if ruleset and not ruleset.system_gate_active:
                     return DamResult(
