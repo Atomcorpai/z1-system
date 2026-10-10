@@ -1,6 +1,8 @@
 fastapi
 uvicorn
 requests
-anthropic
+anthropic>=0.40.0
+httpx
+certifi
 pydantic
 psycopg2-binary
