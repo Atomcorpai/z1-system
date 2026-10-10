@@ -47,7 +47,9 @@ MODE = os.environ.get("z1_MODE", "default")
 # Anthropic client
 # ---------------------------------------------------------------------------
 
-client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+_api_key = (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+print(f"ANTHROPIC_API_KEY length: {len(_api_key)}, prefix: {_api_key[:12] if _api_key else 'MISSING'}")
+client = anthropic.Anthropic(api_key=_api_key or None)
 
 # ---------------------------------------------------------------------------
 # Silo 1 boot preamble — loaded per request from Postgres
@@ -141,7 +143,9 @@ def run_inference(user_prompt: str, silo_context: str = "") -> str:
         )
         return message.content[0].text
     except Exception as e:
-        return f"INFERENCE_ERROR: {str(e)}"
+        import traceback
+        print(f"INFERENCE_ERROR type={type(e).__name__} detail={traceback.format_exc()}")
+        return f"INFERENCE_ERROR: {type(e).__name__}: {str(e)}"
 
 
 # ---------------------------------------------------------------------------
